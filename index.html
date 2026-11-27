@@ -1,0 +1,1794 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusProxy - 軽量Webプロキシ & yyya-nico風 YouTube Viewer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts: Inter & Noto Sans JP -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+        }
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-[100dvh] min-h-screen overflow-hidden select-none sm:select-auto">
+
+    <!-- 上部ナビゲーション＆アドレスバー -->
+    <header class="sticky top-0 bg-slate-900 border-b border-slate-800 px-3 py-2.5 flex flex-col gap-2 shrink-0 z-30">
+        <div class="flex items-center gap-2">
+            <!-- ブランドロゴ -->
+            <button id="btn-home" type="button" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-400 font-bold text-sm transition-colors shrink-0" title="ホームへ戻る">
+                <i data-lucide="shield" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">NexusProxy</span>
+            </button>
+
+            <!-- 戻る・進む・再読み込みボタン -->
+            <div class="flex items-center gap-1 shrink-0">
+                <button id="btn-back" type="button" disabled class="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="戻る">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                </button>
+                <button id="btn-forward" type="button" disabled class="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="進む">
+                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+                <button id="btn-reload" type="button" class="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" title="再読み込み">
+                    <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- URL入力フォーム -->
+            <form id="url-form" class="flex-1 flex items-center gap-1.5 min-w-0">
+                <div class="relative flex-1 flex items-center">
+                    <i data-lucide="lock" class="w-3.5 h-3.5 text-emerald-400 absolute left-3 pointer-events-none"></i>
+                    <input type="text" id="url-input" value="" placeholder="閲覧したいURL または 検索キーワードを入力 (例: example.com)" class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl pl-8 pr-3 py-1.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 outline-none transition-colors">
+                </div>
+                <button type="submit" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs sm:text-sm font-semibold rounded-xl transition-colors shrink-0 flex items-center gap-1 shadow-lg shadow-indigo-600/20">
+                    <span>移動</span>
+                    <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+                </button>
+            </form>
+        </div>
+
+        <!-- サブツールバー：プロキシノード切替・Worker設定・表示モード -->
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- プロキシノード選択 -->
+                <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1">
+                    <i data-lucide="server" class="w-3.5 h-3.5 text-indigo-400"></i>
+                    <select id="proxy-node" class="bg-transparent text-slate-300 outline-none cursor-pointer">
+                        <option value="auto" class="bg-slate-900">自動リレー (全ノード並列最速)</option>
+                        <option value="custom" class="bg-slate-900">★ 自分専用 Cloudflare Worker</option>
+                        <option value="allorigins_raw" class="bg-slate-900">ノード1: AllOrigins (Raw)</option>
+                        <option value="corsproxy" class="bg-slate-900">ノード2: CorsProxy.io</option>
+                        <option value="allorigins" class="bg-slate-900">ノード3: AllOrigins (JSON)</option>
+                        <option value="codetabs" class="bg-slate-900">ノード4: CodeTabs</option>
+                        <option value="thingproxy" class="bg-slate-900">ノード5: ThingProxy</option>
+                        <option value="jina" class="bg-slate-900">ノード6: Jina Reader (軽量テキスト変換)</option>
+                        <option value="direct_iframe" class="bg-slate-900">ノード7: 直接フレーム表示 (プロキシ不使用)</option>
+                    </select>
+                </div>
+
+                <!-- 自分専用Worker設定ボタン -->
+                <button id="btn-worker-config" type="button" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors">
+                    <i data-lucide="settings" class="w-3.5 h-3.5 text-amber-400"></i>
+                    <span>Worker設定</span>
+                </button>
+
+                <!-- YouTube Viewer クイック切替ボタン -->
+                <button id="btn-open-yt-viewer" type="button" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 font-medium transition-colors">
+                    <i data-lucide="youtube" class="w-3.5 h-3.5 text-red-400"></i>
+                    <span>YouTube Viewer</span>
+                </button>
+            </div>
+
+            <!-- プレビュー / HTMLソース 切替タブ -->
+            <div class="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5">
+                <button id="mode-preview" type="button" class="px-2.5 py-1 rounded-md bg-indigo-600 text-white font-medium transition-colors flex items-center gap-1">
+                    <i data-lucide="globe" class="w-3 h-3"></i> プレビュー
+                </button>
+                <button id="mode-source" type="button" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-white font-medium transition-colors flex items-center gap-1">
+                    <i data-lucide="code" class="w-3 h-3"></i> ソース
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ステータス通知バナー -->
+    <div id="status-banner" class="hidden bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 text-xs text-amber-300 flex items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center gap-2">
+            <i data-lucide="info" class="w-4 h-4 shrink-0 text-amber-400"></i>
+            <span id="status-message">通知メッセージ</span>
+        </div>
+        <button id="btn-close-banner" type="button" class="text-amber-400 hover:text-amber-200 p-1">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+    </div>
+
+    <!-- メインコンテンツ領域 -->
+    <main class="flex-1 relative overflow-hidden bg-slate-950">
+
+        <!-- ローディングオーバーレイ -->
+        <div id="loading-overlay" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-6 text-center">
+            <div class="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
+            <p id="loading-status" class="text-sm font-semibold text-white mb-1">プロキシ経由でページを取得中...</p>
+            <p id="loading-url" class="text-xs text-slate-400 max-w-md truncate font-mono"></p>
+        </div>
+
+        <!-- ホーム画面（初期表示） -->
+        <div id="home-view" class="w-full h-full overflow-y-auto p-6 flex flex-col items-center justify-center">
+            <div class="max-w-xl w-full space-y-6 text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 mx-auto shadow-xl shadow-indigo-500/10">
+                    <i data-lucide="shield-check" class="w-8 h-8"></i>
+                </div>
+                <div class="space-y-2">
+                    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">NexusProxy Web Browser</h1>
+                </div>
+
+                <!-- クイックアクセス -->
+                <div class="pt-2 text-left">
+                    <p class="text-xs font-semibold text-slate-400 mb-2.5 px-1">クイックアクセス</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <button type="button" data-url="https://www.youtube.com" class="quick-link p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-red-500/50 transition-all text-left group">
+                            <div class="text-xs font-bold text-red-400 group-hover:text-red-300 flex items-center gap-1"><i data-lucide="youtube" class="w-3.5 h-3.5"></i> YouTube Viewer</div>
+                        </button>
+                        <button type="button" data-url="https://example.com" class="quick-link p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/50 transition-all text-left group">
+                            <div class="text-xs font-bold text-slate-200 group-hover:text-indigo-400">Example.com</div>
+                            <div class="text-[11px] text-slate-500 truncate mt-0.5">疎通テスト用</div>
+                        </button>
+                        <button type="button" data-url="https://ja.wikipedia.org/wiki/メインページ" class="quick-link p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/50 transition-all text-left group">
+                            <div class="text-xs font-bold text-slate-200 group-hover:text-indigo-400">Wikipedia</div>
+                            <div class="text-[11px] text-slate-500 truncate mt-0.5">フリー百科事典</div>
+                        </button>
+                        <button type="button" data-url="https://www.aozora.gr.jp" class="quick-link p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/50 transition-all text-left group">
+                            <div class="text-xs font-bold text-slate-200 group-hover:text-indigo-400">青空文庫</div>
+                            <div class="text-[11px] text-slate-500 truncate mt-0.5">電子書籍アーカイブ</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- プレビュー表示用 iframe コンテナ -->
+        <div id="preview-container" class="hidden w-full h-full bg-white">
+            <iframe id="proxy-frame" class="w-full h-full border-0" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+        </div>
+
+        <!-- yyya-nico スタイル 超軽量 YouTube Viewer コンテナ -->
+        <div id="youtube-container" class="hidden w-full h-full overflow-y-auto bg-slate-950 p-4 sm:p-6">
+            <div class="max-w-5xl mx-auto space-y-5">
+
+                <!-- ヘッダータイトル -->
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="p-2 rounded-xl bg-red-600/20 border border-red-500/30 text-red-400">
+                            <i data-lucide="tv" class="w-5 h-5"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-base sm:text-lg font-bold text-white">YouTube 軽量ビューワー (yyya-nico Style)</h2>
+                            <p class="text-[11px] text-slate-400">検索キーワードでも、動画URL・11桁ID・チャンネルURLでも同じ入力欄から即座に検索・再生できます</p>
+                        </div>
+                    </div>
+                    <button id="btn-yt-clear-player" type="button" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition-colors">
+                        プレイヤーを閉じる
+                    </button>
+                </div>
+
+                <!-- 1. 統合入力バー（キーワード検索 ＆ URL / 11桁ID / チャンネルURL 共通） -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                            <i data-lucide="search" class="w-3.5 h-3.5 text-red-400"></i>
+                            YouTube 検索・URL / ID 直接再生（共通入力欄）
+                        </span>
+                        <span class="text-[11px] text-slate-500 font-mono">例: ボカロ / dQw4w9WgXcQ / @HikakinTV</span>
+                    </div>
+                    <form id="yt-search-form" class="flex flex-col sm:flex-row gap-2">
+                        <input type="text" id="yt-search-input" placeholder="検索キーワード、または動画URL・11桁ID・チャンネルURL(@handle)を入力..." class="flex-1 bg-slate-950 border border-slate-700 focus:border-red-500 rounded-xl px-4 py-2 text-xs sm:text-sm text-white outline-none">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <input type="number" id="yt-start-sec" min="0" placeholder="開始(秒)" class="w-24 bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-white outline-none" title="URL/ID再生時の開始時間（秒）">
+                            <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 shrink-0">
+                                <i data-lucide="search" class="w-4 h-4"></i> 検索 / 再生
+                            </button>
+                            <button type="button" id="btn-yt-add-queue" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors shrink-0" title="入力したURL/IDを連続再生キューに追加">
+                                + キュー
+                            </button>
+                            <button type="button" id="btn-yt-google-fallback" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors shrink-0" title="API検索がブロックされる環境用">
+                                Googleで探す
+                            </button>
+                        </div>
+                    </form>
+                    <p class="text-[11px] text-slate-500">※キーワードを入れると動画検索一覧を表示し、URLや11桁IDを入れるとそのまま再生します。動画カードのチャンネル名からチャンネル一覧も開けます。</p>
+
+                    <!-- 検索結果グリッド（入力欄のすぐ下に表示） -->
+                    <div id="yt-search-results" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1"></div>
+                </div>
+
+                <!-- 2. 埋め込みプレイヤー表示エリア（動画選択・URL再生時に展開） -->
+                <div id="yt-player-wrapper" class="hidden space-y-3">
+                    <div class="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
+                        <iframe id="yt-embed-frame" class="w-full h-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>
+                        <!-- ニコニコ風 弾幕コメントオーバーレイ層 -->
+                        <div id="danmaku-layer" class="absolute inset-0 pointer-events-none overflow-hidden z-10"></div>
+                    </div>
+
+                    <!-- プレイヤーコントロール＆サーバー切替バー -->
+                    <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/30">
+                                <i data-lucide="radio" class="w-3.5 h-3.5"></i> 再生中
+                            </span>
+                            <span id="yt-current-id" class="text-xs text-slate-300 font-mono bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">ID: -</span>
+                            <button id="btn-yt-current-channel" type="button" class="hidden px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-xs text-emerald-300 border border-emerald-500/40 transition-colors flex items-center gap-1">
+                                <i data-lucide="user-square-2" class="w-3.5 h-3.5"></i>
+                                <span id="yt-current-channel-label">チャンネルを見る</span>
+                            </button>
+                            <label class="inline-flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                                <input type="checkbox" id="yt-loop-check" class="rounded accent-indigo-500">
+                                <span>ループ再生</span>
+                            </label>
+                            <button id="btn-yt-next-queue" type="button" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 transition-colors flex items-center gap-1">
+                                <i data-lucide="skip-forward" class="w-3.5 h-3.5"></i> 次のキューへ
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <span class="text-[11px] text-slate-400">再生サーバー:</span>
+                            <select id="yt-instance-select" class="bg-slate-950 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 outline-none">
+                                <option value="nocookie">1. YouTube No-Cookie (標準・最速)</option>
+                                <option value="youtube">2. YouTube 公式埋め込み</option>
+                                <option value="invidious1">3. Invidious (inv.nadeko.net)</option>
+                                <option value="invidious2">4. Invidious (yewtu.be)</option>
+                                <option value="piped">5. Piped (piped.video)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- ニコニコ風 弾幕コメント入力バー -->
+                    <div class="bg-slate-900/70 border border-slate-800 p-2.5 rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <form id="danmaku-form" class="flex-1 flex items-center gap-2">
+                            <select id="danmaku-color" class="bg-slate-950 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1.5 outline-none" title="コメント色">
+                                <option value="#ffffff">白</option>
+                                <option value="#ef4444">赤</option>
+                                <option value="#3b82f6">青</option>
+                                <option value="#22c55e">緑</option>
+                                <option value="#eab308">黄</option>
+                                <option value="#ec4899">桃</option>
+                            </select>
+                            <input type="text" id="danmaku-input" placeholder="画面に弾幕コメントを流す（任意）..." class="flex-1 bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white outline-none">
+                            <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors shrink-0">
+                                流す
+                            </button>
+                        </form>
+                        <button id="btn-toggle-danmaku" type="button" class="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-xs font-medium hover:bg-emerald-600/30 transition-colors shrink-0">
+                            弾幕ON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3.5. チャンネル動画一覧ビューワー -->
+                <div id="yt-channel-panel" class="hidden bg-slate-900 border-2 border-indigo-500/40 rounded-2xl p-4 space-y-3 shadow-xl shadow-indigo-950/30">
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div id="yt-channel-avatar-wrap" class="w-10 h-10 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center overflow-hidden shrink-0">
+                                <i data-lucide="user-square-2" class="w-5 h-5"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <h3 id="yt-channel-title" class="text-sm sm:text-base font-bold text-white truncate">チャンネル名</h3>
+                                    <span id="yt-channel-subs" class="hidden text-[11px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full shrink-0"></span>
+                                </div>
+                                <p id="yt-channel-id-text" class="text-[11px] text-slate-400 font-mono truncate">ID: -</p>
+                            </div>
+                        </div>
+                        <button id="btn-yt-close-channel" type="button" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition-colors">
+                            チャンネルを閉じる
+                        </button>
+                    </div>
+                    <p id="yt-channel-desc" class="hidden text-xs text-slate-400 line-clamp-2"></p>
+                    <div id="yt-channel-videos" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1"></div>
+                </div>
+
+                <!-- 4. 連続再生キュー & 視聴履歴 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- 連続再生キュー -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <i data-lucide="list-video" class="w-4 h-4 text-indigo-400"></i>
+                                連続再生キュー (<span id="yt-queue-count">0</span>)
+                            </h3>
+                            <button id="btn-yt-clear-queue" type="button" class="text-[11px] text-slate-400 hover:text-red-400">クリア</button>
+                        </div>
+                        <div id="yt-queue-list" class="space-y-1.5 max-h-48 overflow-y-auto text-xs text-slate-400">
+                            <p class="text-[11px] text-slate-500 py-2">キューは空です。検索結果の「+」や上の「+ キュー追加」で追加できます。</p>
+                        </div>
+                    </div>
+
+                    <!-- 最近の視聴履歴 -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <i data-lucide="history" class="w-4 h-4 text-emerald-400"></i>
+                                最近の視聴履歴
+                            </h3>
+                            <button id="btn-yt-clear-history" type="button" class="text-[11px] text-slate-400 hover:text-red-400">履歴削除</button>
+                        </div>
+                        <div id="yt-history-list" class="space-y-1.5 max-h-48 overflow-y-auto text-xs text-slate-400">
+                            <p class="text-[11px] text-slate-500 py-2">まだ視聴履歴がありません。</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- HTMLソースコード表示コンテナ -->
+        <div id="source-container" class="hidden w-full h-full flex flex-col bg-slate-950">
+            <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0">
+                <span class="text-xs font-semibold text-slate-400">取得したHTMLソースコード</span>
+                <button id="btn-copy-source" type="button" class="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 transition-colors">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    <span id="copy-text">コピー</span>
+                </button>
+            </div>
+            <pre class="flex-1 overflow-auto p-4 text-xs font-mono text-emerald-300 leading-relaxed select-all"><code id="source-code"><!-- ページを読み込むとここにHTMLソースが表示されます --></code></pre>
+        </div>
+
+    </main>
+
+    <!-- 自分専用 Cloudflare Worker 設定モーダル -->
+    <div id="worker-modal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-base font-bold text-white flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-5 h-5 text-amber-400"></i>
+                    自分専用プロキシ (Cloudflare Worker) 設定
+                </h2>
+                <button id="btn-close-modal" type="button" class="text-slate-400 hover:text-white p-1">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+                Cloudflare Workers にデプロイしたあなた専用のプロキシURLを入力すると、共有プロキシの混雑やブロックを回避して高速で閲覧できます。
+            </p>
+            <div class="space-y-1.5">
+                <label for="custom-worker-url" class="block text-xs font-semibold text-slate-300">Worker エンドポイント URL</label>
+                <div class="flex gap-2">
+                    <input type="url" id="custom-worker-url" placeholder="https://my-proxy.username.workers.dev" class="flex-1 bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-white outline-none font-mono">
+                    <button id="btn-test-worker" type="button" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-amber-300 shrink-0 transition-colors">
+                        接続テスト
+                    </button>
+                </div>
+                <p id="worker-test-result" class="hidden text-[11px] pt-1"></p>
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-2">
+                <button id="btn-cancel-worker" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition-colors">
+                    キャンセル
+                </button>
+                <button id="btn-save-worker" type="button" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white transition-colors">
+                    保存して有効化
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // アイコンの初期化
+        lucide.createIcons();
+
+        // DOM要素の取得
+        const urlForm = document.getElementById('url-form');
+        const urlInput = document.getElementById('url-input');
+        const btnHome = document.getElementById('btn-home');
+        const btnBack = document.getElementById('btn-back');
+        const btnForward = document.getElementById('btn-forward');
+        const btnReload = document.getElementById('btn-reload');
+        const btnOpenYtViewer = document.getElementById('btn-open-yt-viewer');
+        const proxyNodeSelect = document.getElementById('proxy-node');
+        const modePreview = document.getElementById('mode-preview');
+        const modeSource = document.getElementById('mode-source');
+
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingStatusText = document.getElementById('loading-status');
+        const loadingUrlText = document.getElementById('loading-url');
+
+        const homeView = document.getElementById('home-view');
+        const previewContainer = document.getElementById('preview-container');
+        const youtubeContainer = document.getElementById('youtube-container');
+        const sourceContainer = document.getElementById('source-container');
+        const proxyFrame = document.getElementById('proxy-frame');
+        const sourceCodeEl = document.getElementById('source-code');
+        const statusBanner = document.getElementById('status-banner');
+        const statusMessage = document.getElementById('status-message');
+        const workerModal = document.getElementById('worker-modal');
+        const customWorkerInput = document.getElementById('custom-worker-url');
+
+        // YouTube軽量モード用要素
+        const ytStartSecInput = document.getElementById('yt-start-sec');
+        const btnYtAddQueue = document.getElementById('btn-yt-add-queue');
+        const btnYtClearPlayer = document.getElementById('btn-yt-clear-player');
+        const ytPlayerWrapper = document.getElementById('yt-player-wrapper');
+        const ytEmbedFrame = document.getElementById('yt-embed-frame');
+        const ytCurrentIdText = document.getElementById('yt-current-id');
+        const btnYtCurrentChannel = document.getElementById('btn-yt-current-channel');
+        const ytCurrentChannelLabel = document.getElementById('yt-current-channel-label');
+        const ytLoopCheck = document.getElementById('yt-loop-check');
+        const btnYtNextQueue = document.getElementById('btn-yt-next-queue');
+        const ytInstanceSelect = document.getElementById('yt-instance-select');
+        const ytSearchForm = document.getElementById('yt-search-form');
+        const ytSearchInput = document.getElementById('yt-search-input');
+        const ytSearchResults = document.getElementById('yt-search-results');
+        const ytChannelPanel = document.getElementById('yt-channel-panel');
+        const ytChannelAvatarWrap = document.getElementById('yt-channel-avatar-wrap');
+        const ytChannelTitle = document.getElementById('yt-channel-title');
+        const ytChannelSubs = document.getElementById('yt-channel-subs');
+        const ytChannelIdText = document.getElementById('yt-channel-id-text');
+        const ytChannelDesc = document.getElementById('yt-channel-desc');
+        const ytChannelVideos = document.getElementById('yt-channel-videos');
+        const btnYtCloseChannel = document.getElementById('btn-yt-close-channel');
+        const ytQueueList = document.getElementById('yt-queue-list');
+        const ytQueueCount = document.getElementById('yt-queue-count');
+        const btnYtClearQueue = document.getElementById('btn-yt-clear-queue');
+        const ytHistoryList = document.getElementById('yt-history-list');
+        const btnYtClearHistory = document.getElementById('btn-yt-clear-history');
+
+        // 弾幕コメント要素
+        const danmakuLayer = document.getElementById('danmaku-layer');
+        const danmakuForm = document.getElementById('danmaku-form');
+        const danmakuInput = document.getElementById('danmaku-input');
+        const danmakuColor = document.getElementById('danmaku-color');
+        const btnToggleDanmaku = document.getElementById('btn-toggle-danmaku');
+
+        let activeVideoId = null;
+        let activeVideoStart = 0;
+        let activeVideoChannel = null;
+        let isDanmakuEnabled = true;
+        let danmakuTrackIndex = 0;
+        let ytQueue = [];
+        let ytHistory = JSON.parse(localStorage.getItem('nexus_yt_history') || '[]');
+        const ytSearchCache = new Map();
+
+        // 履歴と状態管理
+        let historyStack = [];
+        let historyIndex = -1;
+        let currentViewMode = 'preview';
+        let lastFetchedHtml = '';
+
+        // 保存済みのカスタムWorker URLを読み込み
+        let savedWorkerUrl = localStorage.getItem('nexus_custom_worker') || '';
+        if (savedWorkerUrl) {
+            customWorkerInput.value = savedWorkerUrl;
+            proxyNodeSelect.value = 'custom';
+        }
+
+        // プロキシAPIのエンドポイント構築
+        function buildProxyUrl(targetUrl, node) {
+            const encoded = encodeURIComponent(targetUrl);
+            switch (node) {
+                case 'custom': {
+                    if (!savedWorkerUrl) throw new Error('Worker URLが未設定です');
+                    let cleanWorker = savedWorkerUrl.trim();
+                    if (!/^https?:\/\//i.test(cleanWorker)) {
+                        cleanWorker = 'https://' + cleanWorker;
+                    }
+                    const base = cleanWorker.replace(/\/$/, '');
+                    return `${base}/?url=${encoded}`;
+                }
+                case 'allorigins_raw':
+                    return `https://api.allorigins.win/raw?url=${encoded}`;
+                case 'corsproxy':
+                    return `https://corsproxy.io/?url=${encoded}`;
+                case 'codetabs':
+                    return `https://api.codetabs.com/v1/proxy?quest=${encoded}`;
+                case 'thingproxy':
+                    return `https://thingproxy.freeboard.io/fetch/${targetUrl}`;
+                case 'jina':
+                    return `https://r.jina.ai/${targetUrl}`;
+                case 'allorigins':
+                default:
+                    return `https://api.allorigins.win/get?url=${encoded}`;
+            }
+        }
+
+        // ニコニコ風 弾幕コメント発射ロジック
+        function spawnDanmaku(text, color = '#ffffff') {
+            if (!isDanmakuEnabled || !text) return;
+            const el = document.createElement('div');
+            el.textContent = text;
+            el.style.position = 'absolute';
+            el.style.whiteSpace = 'nowrap';
+            el.style.fontWeight = '700';
+            el.style.color = color;
+            el.style.fontSize = '22px';
+            el.style.textShadow = '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000';
+            el.style.left = '100%';
+
+            const lane = danmakuTrackIndex % 9;
+            danmakuTrackIndex++;
+            el.style.top = `${6 + lane * 9}%`;
+            danmakuLayer.appendChild(el);
+
+            const containerWidth = danmakuLayer.clientWidth || 800;
+            const textWidth = el.offsetWidth || 200;
+            const anim = el.animate(
+                [{ transform: 'translateX(0px)' }, { transform: `translateX(-${containerWidth + textWidth + 60}px)` }],
+                { duration: 6000, easing: 'linear' }
+            );
+            anim.onfinish = () => el.remove();
+        }
+
+        danmakuForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const text = danmakuInput.value.trim();
+            if (!text) return;
+            spawnDanmaku(text, danmakuColor.value);
+            danmakuInput.value = '';
+        });
+
+        btnToggleDanmaku.addEventListener('click', () => {
+            isDanmakuEnabled = !isDanmakuEnabled;
+            danmakuLayer.classList.toggle('hidden', !isDanmakuEnabled);
+            btnToggleDanmaku.textContent = isDanmakuEnabled ? '弾幕ON' : '弾幕OFF';
+        });
+
+        // 通知バナー表示制御
+        function showBanner(msg, isError = false) {
+            statusMessage.textContent = msg;
+            statusBanner.classList.remove('hidden');
+            if (isError) {
+                statusBanner.classList.remove('bg-amber-500/10', 'border-amber-500/30', 'text-amber-300');
+                statusBanner.classList.add('bg-red-500/10', 'border-red-500/30', 'text-red-300');
+            } else {
+                statusBanner.classList.remove('bg-red-500/10', 'border-red-500/30', 'text-red-300');
+                statusBanner.classList.add('bg-amber-500/10', 'border-amber-500/30', 'text-amber-300');
+            }
+        }
+
+        function hideBanner() {
+            statusBanner.classList.add('hidden');
+        }
+
+        document.getElementById('btn-close-banner').addEventListener('click', hideBanner);
+
+        // Worker設定モーダル制御
+        const workerTestResult = document.getElementById('worker-test-result');
+        document.getElementById('btn-worker-config').addEventListener('click', () => {
+            customWorkerInput.value = savedWorkerUrl;
+            workerTestResult.classList.add('hidden');
+            workerModal.classList.remove('hidden');
+        });
+        const closeWorkerModal = () => workerModal.classList.add('hidden');
+        document.getElementById('btn-close-modal').addEventListener('click', closeWorkerModal);
+        document.getElementById('btn-cancel-worker').addEventListener('click', closeWorkerModal);
+
+        // Worker接続診断テスト
+        document.getElementById('btn-test-worker').addEventListener('click', async () => {
+            let val = customWorkerInput.value.trim();
+            if (!val) {
+                workerTestResult.textContent = 'URLを入力してください。';
+                workerTestResult.className = 'text-[11px] pt-1 text-red-400';
+                return;
+            }
+            if (!/^https?:\/\//i.test(val)) val = 'https://' + val;
+            workerTestResult.textContent = '接続テスト中...';
+            workerTestResult.className = 'text-[11px] pt-1 text-slate-400';
+            try {
+                const testEndpoint = `${val.replace(/\/$/, '')}/?url=${encodeURIComponent('https://example.com')}`;
+                const res = await fetchWithTimeout(testEndpoint, 6000);
+                if (res.ok) {
+                    workerTestResult.textContent = '✅ 接続成功！このWorkerは正常に動作しています。';
+                    workerTestResult.className = 'text-[11px] pt-1 text-emerald-400 font-semibold';
+                } else {
+                    workerTestResult.textContent = `⚠️ Workerは応答しましたが HTTP ${res.status} が返りました。`;
+                    workerTestResult.className = 'text-[11px] pt-1 text-amber-400';
+                }
+            } catch (err) {
+                workerTestResult.textContent = `❌ 接続失敗 (${err.message})。ネットワークでこのドメインがブロックされている可能性があります。`;
+                workerTestResult.className = 'text-[11px] pt-1 text-red-400';
+            }
+        });
+
+        document.getElementById('btn-save-worker').addEventListener('click', () => {
+            const val = customWorkerInput.value.trim();
+            if (val) {
+                savedWorkerUrl = val;
+                localStorage.setItem('nexus_custom_worker', val);
+                proxyNodeSelect.value = 'custom';
+                showBanner('自分専用 Cloudflare Worker を有効化しました。', false);
+            } else {
+                savedWorkerUrl = '';
+                localStorage.removeItem('nexus_custom_worker');
+                proxyNodeSelect.value = 'auto';
+                showBanner('カスタムWorker設定を解除しました。', false);
+            }
+            closeWorkerModal();
+        });
+
+        // ソースコードコピー機能（iframe制限対応）
+        document.getElementById('btn-copy-source').addEventListener('click', () => {
+            if (!lastFetchedHtml) return;
+            const textarea = document.createElement('textarea');
+            textarea.value = lastFetchedHtml;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                const copyText = document.getElementById('copy-text');
+                copyText.textContent = 'コピー完了!';
+                setTimeout(() => { copyText.textContent = 'コピー'; }, 2000);
+            } catch (err) {
+                showBanner('コピーに失敗しました。', true);
+            }
+            document.body.removeChild(textarea);
+        });
+
+        // 表示モード切替
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            if (mode === 'preview') {
+                modePreview.classList.add('bg-indigo-600', 'text-white');
+                modePreview.classList.remove('text-slate-400');
+                modeSource.classList.remove('bg-indigo-600', 'text-white');
+                modeSource.classList.add('text-slate-400');
+                if (historyIndex >= 0) {
+                    const currentUrl = historyStack[historyIndex] || '';
+                    if (isYouTubeUrl(currentUrl)) {
+                        youtubeContainer.classList.remove('hidden');
+                        previewContainer.classList.add('hidden');
+                    } else {
+                        previewContainer.classList.remove('hidden');
+                        youtubeContainer.classList.add('hidden');
+                    }
+                    sourceContainer.classList.add('hidden');
+                }
+            } else {
+                modeSource.classList.add('bg-indigo-600', 'text-white');
+                modeSource.classList.remove('text-slate-400');
+                modePreview.classList.remove('bg-indigo-600', 'text-white');
+                modePreview.classList.add('text-slate-400');
+                if (historyIndex >= 0) {
+                    sourceContainer.classList.remove('hidden');
+                    previewContainer.classList.add('hidden');
+                    youtubeContainer.classList.add('hidden');
+                }
+            }
+        }
+        modePreview.addEventListener('click', () => setViewMode('preview'));
+        modeSource.addEventListener('click', () => setViewMode('source'));
+
+        // URL正規化（検索語句が入力された場合はプロキシで429になりにくい検索へ変換）
+        function normalizeUrl(input) {
+            const trimmed = input.trim();
+            if (!trimmed) return '';
+            if (/^https?:\/\//i.test(trimmed)) return trimmed;
+            if (/^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+/.test(trimmed)) {
+                return `https://${trimmed}`;
+            }
+            return `https://www.mojeek.com/search?q=${encodeURIComponent(trimmed)}`;
+        }
+        // 単一ノード経由でのページ取得ヘルパー
+        async function fetchViaSingleNode(targetUrl, node) {
+            const proxyUrl = buildProxyUrl(targetUrl, node);
+            const response = await fetchWithTimeout(proxyUrl, 9000);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            let htmlText = '';
+            if (node === 'allorigins') {
+                const data = await response.json();
+                htmlText = data.contents || '';
+            } else if (node === 'jina') {
+                const markdownText = await response.text();
+                htmlText = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.7;background:#0f172a;color:#f1f5f9;white-space:pre-wrap;word-break:break-word;}</style></head><body>${markdownText.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</body></html>`;
+            } else {
+                htmlText = await response.text();
+            }
+            if (!htmlText || htmlText.trim().length === 0) {
+                throw new Error('空のレスポンスが返されました');
+            }
+            return { node, htmlText };
+        }
+
+        // 複数プロキシノードへ並列リクエストを送り最速で成功したものを返す
+        function raceProxyNodes(targetUrl, nodes) {
+            return new Promise((resolve, reject) => {
+                let settled = false;
+                let failedCount = 0;
+                const errors = [];
+                if (!nodes || nodes.length === 0) {
+                    return reject(new Error('試行可能なノードがありません'));
+                }
+                nodes.forEach(async (node) => {
+                    try {
+                        const res = await fetchViaSingleNode(targetUrl, node);
+                        if (!settled) {
+                            settled = true;
+                            resolve(res);
+                        }
+                    } catch (err) {
+                        failedCount++;
+                        errors.push(`${node}: ${err.name === 'AbortError' ? 'タイムアウト' : err.message}`);
+                        if (!settled && failedCount >= nodes.length) {
+                            reject(new Error(errors.join(', ')));
+                        }
+                    }
+                });
+            });
+        }
+
+        // ページ読み込みメイン処理
+        async function loadPage(rawUrl, addToHistory = true) {
+            const targetUrl = normalizeUrl(rawUrl);
+            if (!targetUrl) return;
+
+            urlInput.value = targetUrl;
+            hideBanner();
+
+            // YouTubeのURLが指定された場合は重いHTML取得をスキップして軽量ビューワーへ切り替え
+            if (isYouTubeUrl(targetUrl)) {
+                openYouTubeViewer(targetUrl, addToHistory);
+                showBanner('YouTubeの重いスクリプトを回避し、yyya-nico風 軽量ビューワーで開きました。', false);
+                return;
+            }
+
+            // 直接フレーム表示モード
+            const selectedNode = proxyNodeSelect.value;
+            if (selectedNode === 'direct_iframe') {
+                if (addToHistory) {
+                    historyStack = historyStack.slice(0, historyIndex + 1);
+                    historyStack.push(targetUrl);
+                    historyIndex = historyStack.length - 1;
+                }
+                updateNavButtons();
+                homeView.classList.add('hidden');
+                youtubeContainer.classList.add('hidden');
+                sourceContainer.classList.add('hidden');
+                previewContainer.classList.remove('hidden');
+                proxyFrame.removeAttribute('srcdoc');
+                proxyFrame.src = targetUrl;
+                return;
+            }
+
+            loadingOverlay.classList.remove('hidden');
+            loadingUrlText.textContent = targetUrl;
+
+            let result = null;
+            let lastErrorMsg = '';
+
+            try {
+                if (selectedNode === 'auto' || selectedNode === 'custom') {
+                    // 1. まずカスタムWorkerがあれば最優先で試行
+                    if (savedWorkerUrl) {
+                        loadingStatusText.textContent = '自分専用 Cloudflare Worker で取得中...';
+                        try {
+                            result = await fetchViaSingleNode(targetUrl, 'custom');
+                        } catch (workerErr) {
+                            lastErrorMsg = `custom: ${workerErr.message}`;
+                        }
+                    } else if (selectedNode === 'custom') {
+                        throw new Error('Worker URLが未設定です');
+                    }
+
+                    // 2. カスタムWorkerが429等で弾かれた場合、他の公開プロキシ群を並列レースで取得
+                    if (!result) {
+                        loadingStatusText.textContent = '別経路のプロキシノードへ自動切替中...';
+                        try {
+                            result = await raceProxyNodes(targetUrl, ['allorigins_raw', 'corsproxy', 'codetabs', 'allorigins', 'thingproxy']);
+                        } catch (raceErr) {
+                            lastErrorMsg = lastErrorMsg ? `${lastErrorMsg} / ${raceErr.message}` : raceErr.message;
+                        }
+                    }
+
+                    // 3. 全てブロックされた場合は Jina Reader（軽量テキスト抽出）へ自動フォールバック
+                    if (!result) {
+                        loadingStatusText.textContent = '対象サイトがプロキシを制限しているため、Jina Reader 抽出モードへ切替中...';
+                        result = await fetchViaSingleNode(targetUrl, 'jina');
+                        showBanner('対象サイトがプロキシからの直接アクセスを制限(429等)したため、Jina Reader（軽量テキスト抽出モード）で表示しました。', false);
+                    }
+                } else {
+                    loadingStatusText.textContent = `プロキシ経由で取得中 (${selectedNode})...`;
+                    result = await fetchViaSingleNode(targetUrl, selectedNode);
+                }
+            } catch (err) {
+                lastErrorMsg = err.message || '通信エラー';
+            }
+
+            loadingOverlay.classList.add('hidden');
+
+            if (result && result.htmlText) {
+                lastFetchedHtml = result.htmlText;
+                sourceCodeEl.textContent = result.htmlText;
+
+                const processedHtml = result.node === 'jina'
+                    ? result.htmlText
+                    : rewriteHtmlForProxy(result.htmlText, targetUrl);
+                proxyFrame.removeAttribute('src');
+                proxyFrame.srcdoc = processedHtml;
+
+                if (addToHistory) {
+                    historyStack = historyStack.slice(0, historyIndex + 1);
+                    historyStack.push(targetUrl);
+                    historyIndex = historyStack.length - 1;
+                }
+                updateNavButtons();
+
+                homeView.classList.add('hidden');
+                youtubeContainer.classList.add('hidden');
+                if (currentViewMode === 'preview') {
+                    previewContainer.classList.remove('hidden');
+                    sourceContainer.classList.add('hidden');
+                } else {
+                    sourceContainer.classList.remove('hidden');
+                    previewContainer.classList.add('hidden');
+                }
+            } else {
+                showBanner(`すべてのプロキシ経路で取得に失敗しました (${lastErrorMsg})。現在のネットワークで外部プロキシが遮断されている可能性があります。「Worker設定」の「接続テスト」で状態を確認してください。`, true);
+            }
+        }
+        modePreview.addEventListener('click', () => setViewMode('preview'));
+        modeSource.addEventListener('click', () => setViewMode('source'));
+
+        // URL正規化（検索語句が入力された場合はDuckDuckGo HTML検索へ変換）
+        function normalizeUrl(input) {
+            const trimmed = input.trim();
+            if (!trimmed) return '';
+            if (/^https?:\/\//i.test(trimmed)) return trimmed;
+            if (/^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+/.test(trimmed)) {
+                return `https://${trimmed}`;
+            }
+            return `https://html.duckduckgo.com/html/?q=${encodeURIComponent(trimmed)}`;
+        }
+
+        // YouTube判定と11桁動画ID抽出（yyya-nico方式）
+        function isYouTubeUrl(url) {
+            return /(?:youtube\.com|youtu\.be)/i.test(url);
+        }
+
+        function extractYouTubeVideoId(input) {
+            const trimmed = (input || '').trim();
+            // 11文字のIDそのものが入力された場合
+            if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+                return trimmed;
+            }
+            const patterns = [
+                /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtube\.com\/live\/)([a-zA-Z0-9_-]{11})/,
+                /[?&]v=([a-zA-Z0-9_-]{11})/
+            ];
+            for (const p of patterns) {
+                const match = trimmed.match(p);
+                if (match && match[1]) return match[1];
+            }
+            return null;
+        }
+
+        function getYouTubeEmbedUrl(videoId, instance, startSec = 0, isLoop = false) {
+            const startParam = startSec > 0 ? `&start=${startSec}` : '';
+            const loopParam = isLoop ? `&loop=1&playlist=${videoId}` : '';
+            switch (instance) {
+                case 'youtube':
+                    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0${startParam}${loopParam}`;
+                case 'invidious1':
+                    return `https://inv.nadeko.net/embed/${videoId}?autoplay=1${startSec > 0 ? `&t=${startSec}` : ''}`;
+                case 'invidious2':
+                    return `https://yewtu.be/embed/${videoId}?autoplay=1${startSec > 0 ? `&t=${startSec}` : ''}`;
+                case 'piped':
+                    return `https://piped.video/embed/${videoId}?autoplay=1${startSec > 0 ? `&t=${startSec}` : ''}`;
+                case 'nocookie':
+                default:
+                    return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0${startParam}${loopParam}`;
+            }
+        }
+
+        // 履歴とキューの描画
+        function renderYtQueueAndHistory() {
+            ytQueueCount.textContent = ytQueue.length;
+            if (ytQueue.length === 0) {
+                ytQueueList.innerHTML = `<p class="text-[11px] text-slate-500 py-2">キューは空です。検索結果の「+」や上の「+ キュー追加」で追加できます。</p>`;
+            } else {
+                ytQueueList.innerHTML = ytQueue.map((item, idx) => `
+                    <div class="flex items-center justify-between gap-2 bg-slate-950 border border-slate-800 px-2.5 py-1.5 rounded-lg">
+                        <button type="button" data-qidx="${idx}" class="yt-play-queue text-left truncate flex-1 hover:text-indigo-400">
+                            <span class="text-slate-500 mr-1">${idx + 1}.</span>${item.title || item.id}
+                        </button>
+                        <button type="button" data-delq="${idx}" class="yt-del-queue text-slate-500 hover:text-red-400 px-1">×</button>
+                    </div>
+                `).join('');
+            }
+
+            if (ytHistory.length === 0) {
+                ytHistoryList.innerHTML = `<p class="text-[11px] text-slate-500 py-2">まだ視聴履歴がありません。</p>`;
+            } else {
+                ytHistoryList.innerHTML = ytHistory.map(item => `
+                    <button type="button" data-hid="${item.id}" class="yt-play-history w-full flex items-center justify-between gap-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 px-2.5 py-1.5 rounded-lg text-left transition-colors">
+                        <span class="truncate text-slate-300">${item.title || item.id}</span>
+                        <span class="text-[10px] text-slate-500 font-mono shrink-0">${item.id}</span>
+                    </button>
+                `).join('');
+            }
+
+            document.querySelectorAll('.yt-play-queue').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = Number(btn.getAttribute('data-qidx'));
+                    const target = ytQueue[idx];
+                    if (target) {
+                        ytQueue.splice(idx, 1);
+                        playYouTubeVideo(target.id, target.title, target.start || 0, target.channel || null);
+                    }
+                });
+            });
+            document.querySelectorAll('.yt-del-queue').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = Number(btn.getAttribute('data-delq'));
+                    ytQueue.splice(idx, 1);
+                    renderYtQueueAndHistory();
+                });
+            });
+            document.querySelectorAll('.yt-play-history').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-hid');
+                    if (id) playYouTubeVideo(id);
+                });
+            });
+        }
+
+        // YouTube動画の再生セット
+        function playYouTubeVideo(videoId, title = '', startSec = 0, channelInfo = null) {
+            activeVideoId = videoId;
+            activeVideoStart = Number(startSec) || 0;
+            activeVideoChannel = channelInfo && (channelInfo.id || channelInfo.name) ? channelInfo : null;
+            ytPlayerWrapper.classList.remove('hidden');
+            danmakuLayer.innerHTML = '';
+
+            ytCurrentIdText.textContent = `ID: ${videoId}${activeVideoStart > 0 ? ` (${activeVideoStart}秒〜)` : ''}`;
+            if (activeVideoChannel && activeVideoChannel.id) {
+                btnYtCurrentChannel.classList.remove('hidden');
+                ytCurrentChannelLabel.textContent = activeVideoChannel.name || 'チャンネルを見る';
+            } else {
+                btnYtCurrentChannel.classList.add('hidden');
+            }
+
+            ytEmbedFrame.src = getYouTubeEmbedUrl(videoId, ytInstanceSelect.value, activeVideoStart, ytLoopCheck.checked);
+
+            // 履歴に追加（重複除外・最新20件）
+            const displayTitle = title || `YouTube Video (${videoId})`;
+            ytHistory = [{ id: videoId, title: displayTitle }, ...ytHistory.filter(h => h.id !== videoId)].slice(0, 20);
+            localStorage.setItem('nexus_yt_history', JSON.stringify(ytHistory));
+            renderYtQueueAndHistory();
+
+            ytPlayerWrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        btnYtCurrentChannel.addEventListener('click', () => {
+            if (activeVideoChannel && activeVideoChannel.id) {
+                openYouTubeChannel(activeVideoChannel.id, activeVideoChannel.name || '');
+            }
+        });
+
+        // プレイヤーオプション変更時の即時反映
+        ytInstanceSelect.addEventListener('change', () => {
+            if (activeVideoId) {
+                ytEmbedFrame.src = getYouTubeEmbedUrl(activeVideoId, ytInstanceSelect.value, activeVideoStart, ytLoopCheck.checked);
+            }
+        });
+        ytLoopCheck.addEventListener('change', () => {
+            if (activeVideoId) {
+                ytEmbedFrame.src = getYouTubeEmbedUrl(activeVideoId, ytInstanceSelect.value, activeVideoStart, ytLoopCheck.checked);
+            }
+        });
+        btnYtClearPlayer.addEventListener('click', () => {
+            ytEmbedFrame.src = '';
+            activeVideoId = null;
+            activeVideoChannel = null;
+            ytPlayerWrapper.classList.add('hidden');
+        });
+        btnYtNextQueue.addEventListener('click', () => {
+            if (ytQueue.length > 0) {
+                const next = ytQueue.shift();
+                playYouTubeVideo(next.id, next.title, next.start || 0, next.channel || null);
+            } else {
+                showBanner('連続再生キューに次の動画がありません。', false);
+            }
+        });
+        btnYtClearQueue.addEventListener('click', () => {
+            ytQueue = [];
+            renderYtQueueAndHistory();
+        });
+        btnYtClearHistory.addEventListener('click', () => {
+            ytHistory = [];
+            localStorage.removeItem('nexus_yt_history');
+            renderYtQueueAndHistory();
+        });
+
+        btnYtAddQueue.addEventListener('click', () => {
+            const vid = extractYouTubeVideoId(ytSearchInput.value);
+            if (!vid) {
+                showBanner('キューに追加するには入力欄に有効なYouTube URLまたは11桁の動画IDを入力してください。', true);
+                return;
+            }
+            const startSec = Number(ytStartSecInput.value) || 0;
+            ytQueue.push({ id: vid, title: `YouTube Video (${vid})`, start: startSec });
+            renderYtQueueAndHistory();
+            showBanner(`キューに追加しました: ${vid}`, false);
+        });
+
+        // タイムアウト付き fetch ヘルパー
+        async function fetchWithTimeout(url, timeoutMs = 5000, options = {}) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                return await fetch(url, { ...options, signal: controller.signal });
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        // 並列レース汎用ヘルパー
+        function raceForResults(promises, timeoutMs = 3800) {
+            return new Promise((resolve) => {
+                let settled = false;
+                let remaining = promises.length;
+                if (remaining === 0) return resolve([]);
+
+                const timer = setTimeout(() => {
+                    if (!settled) {
+                        settled = true;
+                        resolve([]);
+                    }
+                }, timeoutMs);
+
+                promises.forEach(async (p) => {
+                    try {
+                        const res = await p;
+                        if (!settled && Array.isArray(res) && res.length > 0) {
+                            settled = true;
+                            clearTimeout(timer);
+                            resolve(res);
+                            return;
+                        }
+                    } catch (_) {}
+                    remaining -= 1;
+                    if (!settled && remaining <= 0) {
+                        settled = true;
+                        clearTimeout(timer);
+                        resolve([]);
+                    }
+                });
+            });
+        }
+
+        // 高精度＆高速YouTube動画検索（並列レース + タイムアウト短縮 + キャッシュ）
+        async function searchYouTubeVideos(query) {
+            const trimmed = query.trim();
+            if (!trimmed) return;
+
+            // URLまたは11桁IDが直接入力された場合は即再生
+            const directId = extractYouTubeVideoId(trimmed);
+            if (directId) {
+                const startSec = Number(ytStartSecInput.value) || 0;
+                playYouTubeVideo(directId, '', startSec);
+                return;
+            }
+
+            // チャンネルURL/IDが入力された場合はチャンネルを開く
+            if (isChannelIdentifier(trimmed)) {
+                openYouTubeChannel(extractChannelId(trimmed), '');
+                return;
+            }
+
+            // キャッシュヒット時は即座に表示
+            const cacheKey = trimmed.toLowerCase();
+            if (ytSearchCache.has(cacheKey)) {
+                renderYouTubeSearchResults(ytSearchCache.get(cacheKey));
+                return;
+            }
+
+            ytSearchResults.innerHTML = `<div class="col-span-full text-center py-6 text-xs text-slate-400 flex items-center justify-center gap-2"><span class="w-4 h-4 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin"></span>「${trimmed}」を高速検索中...</div>`;
+
+            // 1. Piped API 群を並列検索（最速・高精度）
+            const pipedApis = [
+                'https://pipedapi.kavin.rocks',
+                'https://pipedapi.adminforge.de',
+                'https://api.piped.yt',
+                'https://pipedapi.lunar.icu'
+            ];
+
+            const pipedTasks = pipedApis.map(async (apiBase) => {
+                const url = `${apiBase}/search?q=${encodeURIComponent(trimmed)}&filter=videos`;
+                const res = await fetchWithTimeout(url, 3200);
+                if (!res.ok) return [];
+                const data = await res.json();
+                const items = Array.isArray(data) ? data : (data.items || []);
+                const formatted = [];
+                for (const item of items) {
+                    const rawUrl = item.url || '';
+                    const vid = extractYouTubeVideoId(rawUrl) || (item.videoId && /^[a-zA-Z0-9_-]{11}$/.test(item.videoId) ? item.videoId : null);
+                    const rawUploaderUrl = item.uploaderUrl || '';
+                    const channelId = extractChannelId(rawUploaderUrl) || (item.uploaderId || '');
+                    if (vid && item.title) {
+                        formatted.push({
+                            videoId: vid,
+                            title: item.title,
+                            author: item.uploaderName || item.author || '',
+                            channelId: channelId
+                        });
+                    }
+                    if (formatted.length >= 12) break;
+                }
+                return formatted;
+            });
+
+            let results = await raceForResults(pipedTasks, 3500);
+
+            // 2. Pipedで結果が得られなかった場合のみ Invidious API 群を並列検索
+            if (results.length === 0) {
+                const invidiousApis = [
+                    'https://inv.nadeko.net',
+                    'https://yewtu.be',
+                    'https://invidious.nerdvpn.de',
+                    'https://iv.ggtyler.dev'
+                ];
+
+                const invidiousTasks = invidiousApis.map(async (inst) => {
+                    const apiUrl = `${inst}/api/v1/search?q=${encodeURIComponent(trimmed)}&type=video`;
+                    const res = await fetchWithTimeout(apiUrl, 3200);
+                    if (!res.ok) return [];
+                    const videos = await res.json();
+                    if (!Array.isArray(videos)) return [];
+                    return videos
+                        .filter(v => v.videoId && /^[a-zA-Z0-9_-]{11}$/.test(v.videoId))
+                        .slice(0, 12)
+                        .map(v => ({
+                            videoId: v.videoId,
+                            title: v.title || '無題の動画',
+                            author: v.author || '',
+                            channelId: v.authorId || ''
+                        }));
+                });
+
+                results = await raceForResults(invidiousTasks, 3500);
+            }
+
+            // 3. 最終フォールバック：YouTube検索HTMLからvideoRendererを抽出
+            if (results.length === 0) {
+                try {
+                    const ytSearchPage = `https://www.youtube.com/results?search_query=${encodeURIComponent(trimmed)}`;
+                    const proxyEndpoint = savedWorkerUrl
+                        ? buildProxyUrl(ytSearchPage, 'custom')
+                        : buildProxyUrl(ytSearchPage, 'allorigins_raw');
+                    const res = await fetchWithTimeout(proxyEndpoint, 4500);
+                    if (res.ok) {
+                        const html = await res.text();
+                        const videoMatches = [...html.matchAll(/"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"(.*?)"\}/g)];
+                        const seen = new Set();
+                        const extracted = [];
+                        for (const m of videoMatches) {
+                            const vid = m[1];
+                            const rawTitle = m[2];
+                            if (!seen.has(vid)) {
+                                seen.add(vid);
+                                let cleanTitle = rawTitle;
+                                try {
+                                    cleanTitle = JSON.parse(`"${rawTitle.replace(/"/g, '\\"')}"`);
+                                } catch (_) {}
+                                extracted.push({
+                                    videoId: vid,
+                                    title: cleanTitle,
+                                    author: 'YouTube検索結果',
+                                    channelId: ''
+                                });
+                            }
+                            if (extracted.length >= 12) break;
+                        }
+                        results = extracted;
+                    }
+                } catch (_) {}
+            }
+
+            if (results.length > 0) {
+                ytSearchCache.set(cacheKey, results);
+                renderYouTubeSearchResults(results);
+                return;
+            }
+
+            ytSearchResults.innerHTML = `
+                <div class="col-span-full bg-slate-950 border border-amber-500/30 rounded-xl p-4 text-center space-y-2">
+                    <p class="text-xs text-amber-300 font-semibold">検索APIへの接続がネットワーク制限でブロックされました</p>
+                    <p class="text-[11px] text-slate-400">「Googleで探す」ボタンから動画リンクをコピーして、上の「動画URL / 11桁ID」欄に貼り付けると確実に再生できます。</p>
+                </div>
+            `;
+        }
+
+        function renderYouTubeSearchResults(videos) {
+            ytSearchResults.innerHTML = videos.map(v => {
+                const thumb = `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`;
+                const safeTitle = (v.title || '').replace(/"/g, '&quot;');
+                const safeAuthor = (v.author || '').replace(/"/g, '&quot;');
+                const safeChannelId = (v.channelId || '').replace(/"/g, '&quot;');
+                return `
+                    <div class="bg-slate-950 border border-slate-800 hover:border-red-500/50 rounded-xl overflow-hidden flex flex-col group transition-all">
+                        <button type="button" data-vid="${v.videoId}" data-title="${safeTitle}" data-cid="${safeChannelId}" data-cname="${safeAuthor}" class="yt-video-card text-left flex-1 flex flex-col">
+                            <div class="aspect-video bg-black overflow-hidden relative w-full">
+                                <img src="${thumb}" alt="" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
+                                <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-[10px] text-white px-1.5 py-0.5 rounded font-mono">${v.videoId}</span>
+                            </div>
+                            <div class="p-2.5 flex-1 flex flex-col justify-between">
+                                <div class="text-xs font-bold text-slate-200 line-clamp-2 group-hover:text-red-400">${v.title}</div>
+                            </div>
+                        </button>
+                        <div class="px-2.5 pb-2 flex items-center justify-between gap-2 border-t border-slate-900 pt-1.5">
+                            <button type="button" data-cid="${safeChannelId}" data-cname="${safeAuthor}" class="yt-open-channel text-[11px] text-emerald-400 hover:text-emerald-300 truncate text-left flex items-center gap-1 font-medium" title="このチャンネルの動画一覧を表示">
+                                <i data-lucide="user-square-2" class="w-3.5 h-3.5 shrink-0"></i>
+                                <span class="truncate">${v.author || 'チャンネルを見る'}</span>
+                            </button>
+                            <button type="button" data-qvid="${v.videoId}" data-qtitle="${safeTitle}" data-cid="${safeChannelId}" data-cname="${safeAuthor}" class="yt-card-queue text-[11px] text-slate-400 hover:text-indigo-400 flex items-center gap-1 shrink-0">
+                                <i data-lucide="plus" class="w-3 h-3"></i> キュー
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+
+            document.querySelectorAll('.yt-video-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const vid = card.getAttribute('data-vid');
+                    const title = card.getAttribute('data-title');
+                    const cid = card.getAttribute('data-cid');
+                    const cname = card.getAttribute('data-cname');
+                    if (vid) {
+                        playYouTubeVideo(vid, title, 0, cid ? { id: cid, name: cname } : null);
+                    }
+                });
+            });
+
+            document.querySelectorAll('.yt-open-channel').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const cid = btn.getAttribute('data-cid');
+                    const cname = btn.getAttribute('data-cname');
+                    openYouTubeChannel(cid, cname);
+                });
+            });
+
+            document.querySelectorAll('.yt-card-queue').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const vid = btn.getAttribute('data-qvid');
+                    const title = btn.getAttribute('data-qtitle');
+                    const cid = btn.getAttribute('data-cid');
+                    const cname = btn.getAttribute('data-cname');
+                    if (vid) {
+                        ytQueue.push({ id: vid, title: title || vid, start: 0, channel: cid ? { id: cid, name: cname } : null });
+                        renderYtQueueAndHistory();
+                        showBanner(`キューに追加しました: ${title || vid}`, false);
+                    }
+                });
+            });
+        }
+
+        // チャンネル識別子かどうか判定
+        function isChannelIdentifier(raw) {
+            if (!raw) return false;
+            const trimmed = raw.trim();
+            return /^UC[a-zA-Z0-9_-]{22}$/.test(trimmed)
+                || /^@[\w.-]+$/.test(trimmed)
+                || /(?:youtube\.com)\/(?:channel\/UC[a-zA-Z0-9_-]{22}|@[\w.-]+|c\/[\w.-]+|user\/[\w.-]+)/i.test(trimmed);
+        }
+
+        // チャンネルID抽出（/channel/UC... や /@handle に対応）
+        function extractChannelId(raw) {
+            if (!raw) return '';
+            const trimmed = raw.trim();
+            if (/^UC[a-zA-Z0-9_-]{22}$/.test(trimmed) || /^@[\w.-]+$/.test(trimmed)) {
+                return trimmed;
+            }
+            const channelMatch = trimmed.match(/\/channel\/(UC[a-zA-Z0-9_-]{22})/);
+            if (channelMatch && channelMatch[1]) return channelMatch[1];
+            const handleMatch = trimmed.match(/\/(@[\w.-]+)/);
+            if (handleMatch && handleMatch[1]) return handleMatch[1];
+            const customMatch = trimmed.match(/\/(?:c|user)\/([\w.-]+)/);
+            if (customMatch && customMatch[1]) return `@${customMatch[1]}`;
+            return trimmed;
+        }
+
+        // チャンネル動画一覧を取得・表示（並列高速取得＋フォールバック対応）
+        async function openYouTubeChannel(channelId, channelName = '') {
+            let cleanId = extractChannelId(channelId);
+            if (!cleanId && channelName) {
+                // チャンネルIDが無い場合はチャンネル名で動画を検索
+                ytSearchInput.value = channelName;
+                searchYouTubeVideos(channelName);
+                return;
+            }
+            if (!cleanId) {
+                showBanner('この動画からはチャンネルIDを取得できませんでした。', true);
+                return;
+            }
+
+            ytChannelPanel.classList.remove('hidden');
+            ytChannelTitle.textContent = channelName || cleanId;
+            ytChannelIdText.textContent = `ID: ${cleanId}`;
+            ytChannelSubs.classList.add('hidden');
+            ytChannelDesc.classList.add('hidden');
+            ytChannelAvatarWrap.innerHTML = `<i data-lucide="user-square-2" class="w-5 h-5"></i>`;
+            lucide.createIcons();
+
+            ytChannelVideos.innerHTML = `<div class="col-span-full text-center py-6 text-xs text-slate-400 flex items-center justify-center gap-2"><span class="w-4 h-4 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></span>チャンネル「${channelName || cleanId}」の動画一覧を読み込み中...</div>`;
+            ytChannelPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            const raceChannelData = (promises, timeoutMs = 4200) => {
+                return new Promise((resolve) => {
+                    let settled = false;
+                    let remaining = promises.length;
+                    if (remaining === 0) return resolve(null);
+
+                    const timer = setTimeout(() => {
+                        if (!settled) {
+                            settled = true;
+                            resolve(null);
+                        }
+                    }, timeoutMs);
+
+                    promises.forEach(async (p) => {
+                        try {
+                            const res = await p;
+                            if (!settled && res && Array.isArray(res.videos) && res.videos.length > 0) {
+                                settled = true;
+                                clearTimeout(timer);
+                                resolve(res);
+                                return;
+                            }
+                        } catch (_) {}
+                        remaining -= 1;
+                        if (!settled && remaining <= 0) {
+                            settled = true;
+                            clearTimeout(timer);
+                            resolve(null);
+                        }
+                    });
+                });
+            };
+
+            // 1. Piped API 群でチャンネル情報を並列取得
+            const pipedApis = [
+                'https://pipedapi.kavin.rocks',
+                'https://pipedapi.adminforge.de',
+                'https://api.piped.yt',
+                'https://pipedapi.lunar.icu'
+            ];
+
+            const pipedChannelTasks = pipedApis.map(async (apiBase) => {
+                const endpoint = cleanId.startsWith('@')
+                    ? `${apiBase}/channel/@${encodeURIComponent(cleanId.slice(1))}`
+                    : `${apiBase}/channel/${encodeURIComponent(cleanId)}`;
+                const res = await fetchWithTimeout(endpoint, 3800);
+                if (!res.ok) return null;
+                const data = await res.json();
+                const streams = Array.isArray(data.relatedStreams) ? data.relatedStreams : [];
+                const videos = streams
+                    .map(item => {
+                        const vid = extractYouTubeVideoId(item.url || '');
+                        return vid && item.title ? { videoId: vid, title: item.title } : null;
+                    })
+                    .filter(Boolean)
+                    .slice(0, 15);
+                return {
+                    name: data.name || channelName || cleanId,
+                    avatar: data.avatarUrl || '',
+                    subscribers: data.subscriberCount >= 0 ? `${Number(data.subscriberCount).toLocaleString()}人` : '',
+                    description: data.description || '',
+                    videos
+                };
+            });
+
+            let channelData = await raceChannelData(pipedChannelTasks, 4000);
+
+            // 2. Invidious API 群でフォールバック（UC...形式の場合）
+            if (!channelData && cleanId.startsWith('UC')) {
+                const invidiousApis = [
+                    'https://inv.nadeko.net',
+                    'https://yewtu.be',
+                    'https://invidious.nerdvpn.de'
+                ];
+                const invChannelTasks = invidiousApis.map(async (inst) => {
+                    const res = await fetchWithTimeout(`${inst}/api/v1/channels/${encodeURIComponent(cleanId)}`, 3800);
+                    if (!res.ok) return null;
+                    const data = await res.json();
+                    const latest = Array.isArray(data.latestVideos) ? data.latestVideos : [];
+                    const videos = latest
+                        .filter(v => v.videoId && /^[a-zA-Z0-9_-]{11}$/.test(v.videoId))
+                        .slice(0, 15)
+                        .map(v => ({ videoId: v.videoId, title: v.title || '無題の動画' }));
+                    const thumbObj = Array.isArray(data.authorThumbnails) ? data.authorThumbnails[data.authorThumbnails.length - 1] : null;
+                    let avatar = thumbObj ? thumbObj.url : '';
+                    if (avatar && avatar.startsWith('//')) avatar = 'https:' + avatar;
+                    return {
+                        name: data.author || channelName || cleanId,
+                        avatar,
+                        subscribers: data.subCount ? `${Number(data.subCount).toLocaleString()}人` : '',
+                        description: data.description || '',
+                        videos
+                    };
+                });
+                channelData = await raceChannelData(invChannelTasks, 4000);
+            }
+
+            // 3. 最終フォールバック：YouTubeチャンネルページのHTMLから動画IDを抽出
+            if (!channelData) {
+                try {
+                    const ytChUrl = cleanId.startsWith('UC')
+                        ? `https://www.youtube.com/channel/${cleanId}/videos`
+                        : `https://www.youtube.com/${cleanId.startsWith('@') ? cleanId : '@' + cleanId}/videos`;
+                    const proxyEndpoint = savedWorkerUrl
+                        ? buildProxyUrl(ytChUrl, 'custom')
+                        : buildProxyUrl(ytChUrl, 'allorigins_raw');
+                    const res = await fetchWithTimeout(proxyEndpoint, 4500);
+                    if (res.ok) {
+                        const html = await res.text();
+                        const videoMatches = [...html.matchAll(/"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"(.*?)"\}/g)];
+                        const seen = new Set();
+                        const videos = [];
+                        for (const m of videoMatches) {
+                            const vid = m[1];
+                            if (!seen.has(vid)) {
+                                seen.add(vid);
+                                let cleanTitle = m[2];
+                                try {
+                                    cleanTitle = JSON.parse(`"${m[2].replace(/"/g, '\\"')}"`);
+                                } catch (_) {}
+                                videos.push({ videoId: vid, title: cleanTitle });
+                            }
+                            if (videos.length >= 15) break;
+                        }
+                        if (videos.length > 0) {
+                            channelData = {
+                                name: channelName || cleanId,
+                                avatar: '',
+                                subscribers: '',
+                                description: '',
+                                videos
+                            };
+                        }
+                    }
+                } catch (_) {}
+            }
+
+            if (!channelData || channelData.videos.length === 0) {
+                ytChannelVideos.innerHTML = `<div class="col-span-full text-center py-6 text-xs text-slate-400">チャンネルの動画一覧を取得できませんでした（API制限または非公開チャンネルの可能性があります）。</div>`;
+                return;
+            }
+
+            // チャンネルヘッダー情報の反映
+            const resolvedName = channelData.name || channelName || cleanId;
+            ytChannelTitle.textContent = resolvedName;
+            if (channelData.avatar) {
+                ytChannelAvatarWrap.innerHTML = `<img src="${channelData.avatar}" alt="" class="w-full h-full object-cover">`;
+            }
+            if (channelData.subscribers) {
+                ytChannelSubs.textContent = `登録者: ${channelData.subscribers}`;
+                ytChannelSubs.classList.remove('hidden');
+            }
+            if (channelData.description) {
+                ytChannelDesc.textContent = channelData.description;
+                ytChannelDesc.classList.remove('hidden');
+            }
+
+            // チャンネル内の動画一覧を描画
+            ytChannelVideos.innerHTML = channelData.videos.map(v => {
+                const thumb = `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`;
+                const safeTitle = (v.title || '').replace(/"/g, '&quot;');
+                const safeChName = resolvedName.replace(/"/g, '&quot;');
+                const safeChId = cleanId.replace(/"/g, '&quot;');
+                return `
+                    <div class="bg-slate-950 border border-slate-800 hover:border-indigo-500/60 rounded-xl overflow-hidden flex flex-col group transition-all">
+                        <button type="button" data-cvid="${v.videoId}" data-ctitle="${safeTitle}" data-cid="${safeChId}" data-cname="${safeChName}" class="yt-ch-video-card text-left flex-1 flex flex-col">
+                            <div class="aspect-video bg-black overflow-hidden relative w-full">
+                                <img src="${thumb}" alt="" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
+                                <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-[10px] text-white px-1.5 py-0.5 rounded font-mono">${v.videoId}</span>
+                            </div>
+                            <div class="p-2.5 flex-1">
+                                <div class="text-xs font-bold text-slate-200 line-clamp-2 group-hover:text-indigo-400">${v.title}</div>
+                            </div>
+                        </button>
+                        <div class="px-2.5 pb-2 flex items-center justify-between border-t border-slate-900 pt-1.5">
+                            <span class="text-[10px] text-slate-500 truncate">${resolvedName}</span>
+                            <button type="button" data-cqvid="${v.videoId}" data-cqtitle="${safeTitle}" data-cid="${safeChId}" data-cname="${safeChName}" class="yt-ch-queue text-[11px] text-slate-400 hover:text-indigo-400 flex items-center gap-1 shrink-0">
+                                <i data-lucide="plus" class="w-3 h-3"></i> キュー
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+
+            document.querySelectorAll('.yt-ch-video-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const vid = card.getAttribute('data-cvid');
+                    const title = card.getAttribute('data-ctitle');
+                    const cid = card.getAttribute('data-cid');
+                    const cname = card.getAttribute('data-cname');
+                    if (vid) {
+                        playYouTubeVideo(vid, title, 0, cid ? { id: cid, name: cname } : null);
+                    }
+                });
+            });
+
+            document.querySelectorAll('.yt-ch-queue').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const vid = btn.getAttribute('data-cqvid');
+                    const title = btn.getAttribute('data-cqtitle');
+                    const cid = btn.getAttribute('data-cid');
+                    const cname = btn.getAttribute('data-cname');
+                    if (vid) {
+                        ytQueue.push({ id: vid, title: title || vid, start: 0, channel: cid ? { id: cid, name: cname } : null });
+                        renderYtQueueAndHistory();
+                        showBanner(`キューに追加しました: ${title || vid}`, false);
+                    }
+                });
+            });
+        }
+
+        btnYtCloseChannel.addEventListener('click', () => {
+            ytChannelPanel.classList.add('hidden');
+            ytChannelVideos.innerHTML = '';
+        });
+
+        ytSearchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            searchYouTubeVideos(ytSearchInput.value);
+        });
+
+        document.getElementById('btn-yt-google-fallback').addEventListener('click', () => {
+            const q = ytSearchInput.value.trim();
+            const googleSearchUrl = q
+                ? `https://www.google.com/search?q=${encodeURIComponent('site:youtube.com/watch ' + q)}`
+                : 'https://www.google.com/search?q=site:youtube.com/watch';
+            window.open(googleSearchUrl, '_blank', 'noopener,noreferrer');
+        });
+
+        // 履歴ボタン状態更新
+        function updateNavButtons() {
+            btnBack.disabled = historyIndex <= 0;
+            btnForward.disabled = historyIndex >= historyStack.length - 1;
+        }
+
+        // YouTube Viewer画面を開く共通関数
+        function openYouTubeViewer(targetUrl = 'https://www.youtube.com', addToHistory = true) {
+            if (addToHistory) {
+                historyStack = historyStack.slice(0, historyIndex + 1);
+                historyStack.push(targetUrl);
+                historyIndex = historyStack.length - 1;
+            }
+            updateNavButtons();
+            homeView.classList.add('hidden');
+            previewContainer.classList.add('hidden');
+            sourceContainer.classList.add('hidden');
+            youtubeContainer.classList.remove('hidden');
+            renderYtQueueAndHistory();
+
+            const vid = extractYouTubeVideoId(targetUrl);
+            if (vid) {
+                playYouTubeVideo(vid);
+            } else if (isChannelIdentifier(targetUrl)) {
+                openYouTubeChannel(extractChannelId(targetUrl), '');
+            } else {
+                try {
+                    const urlObj = new URL(targetUrl);
+                    const q = urlObj.searchParams.get('search_query');
+                    if (q) {
+                        ytSearchInput.value = q;
+                        searchYouTubeVideos(q);
+                    }
+                } catch (e) {}
+            }
+        }
+
+        // ページ読み込みメイン処理
+        async function loadPage(rawUrl, addToHistory = true) {
+            const targetUrl = normalizeUrl(rawUrl);
+            if (!targetUrl) return;
+
+            urlInput.value = targetUrl;
+            hideBanner();
+
+            // YouTubeのURLが指定された場合は重いHTML取得をスキップして軽量ビューワーへ切り替え
+            if (isYouTubeUrl(targetUrl)) {
+                openYouTubeViewer(targetUrl, addToHistory);
+                showBanner('YouTubeの重いスクリプトを回避し、yyya-nico風 軽量ビューワーで開きました。', false);
+                return;
+            }
+
+            loadingOverlay.classList.remove('hidden');
+            loadingUrlText.textContent = targetUrl;
+
+            const selectedNode = proxyNodeSelect.value;
+            let nodesToTry = [];
+            if (selectedNode === 'auto') {
+                nodesToTry = savedWorkerUrl
+                    ? ['custom', 'allorigins_raw', 'corsproxy', 'allorigins', 'codetabs', 'jina']
+                    : ['allorigins_raw', 'corsproxy', 'allorigins', 'codetabs', 'jina'];
+            } else {
+                nodesToTry = [selectedNode];
+            }
+
+            let success = false;
+            let lastErrorMsg = '';
+
+            for (const node of nodesToTry) {
+                try {
+                    loadingStatusText.textContent = `プロキシ経由で取得中 (${node})...`;
+                    const proxyUrl = buildProxyUrl(targetUrl, node);
+                    const response = await fetchWithTimeout(proxyUrl, 9000);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    let htmlText = '';
+                    if (node === 'allorigins') {
+                        const data = await response.json();
+                        htmlText = data.contents || '';
+                    } else if (node === 'jina') {
+                        const markdownText = await response.text();
+                        htmlText = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.7;background:#0f172a;color:#f1f5f9;white-space:pre-wrap;}</style></head><body>${markdownText.replace(/</g, '&lt;')}</body></html>`;
+                    } else {
+                        htmlText = await response.text();
+                    }
+
+                    if (!htmlText || htmlText.trim().length === 0) {
+                        throw new Error('空のレスポンスが返されました');
+                    }
+
+                    lastFetchedHtml = htmlText;
+                    sourceCodeEl.textContent = htmlText;
+
+                    const processedHtml = node === 'jina' ? htmlText : rewriteHtmlForProxy(htmlText, targetUrl);
+                    proxyFrame.srcdoc = processedHtml;
+
+                    if (addToHistory) {
+                        historyStack = historyStack.slice(0, historyIndex + 1);
+                        historyStack.push(targetUrl);
+                        historyIndex = historyStack.length - 1;
+                    }
+                    updateNavButtons();
+
+                    homeView.classList.add('hidden');
+                    youtubeContainer.classList.add('hidden');
+                    if (currentViewMode === 'preview') {
+                        previewContainer.classList.remove('hidden');
+                        sourceContainer.classList.add('hidden');
+                    } else {
+                        sourceContainer.classList.remove('hidden');
+                        previewContainer.classList.add('hidden');
+                    }
+
+                    if (selectedNode === 'auto' && node !== nodesToTry[0]) {
+                        showBanner(`自動切替により「${node}」経由で取得しました。`, false);
+                    }
+
+                    success = true;
+                    break;
+                } catch (err) {
+                    lastErrorMsg = `${node}: ${err.name === 'AbortError' ? 'タイムアウト' : err.message}`;
+                    console.warn('Proxy node failed:', lastErrorMsg);
+                }
+            }
+
+            loadingOverlay.classList.add('hidden');
+
+            if (!success) {
+                showBanner(`取得失敗 (${lastErrorMsg}) — ネットワーク制限または対象サイトのブロックにより取得できませんでした。「Worker設定」で自分専用プロキシを設定すると改善します。`, true);
+            }
+        }
+
+        // イベントリスナー登録
+        urlForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            loadPage(urlInput.value, true);
+        });
+
+        btnOpenYtViewer.addEventListener('click', () => {
+            urlInput.value = 'https://www.youtube.com';
+            openYouTubeViewer('https://www.youtube.com', true);
+        });
+
+        document.querySelectorAll('.quick-link').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const url = btn.getAttribute('data-url');
+                if (url) loadPage(url, true);
+            });
+        });
+
+        btnHome.addEventListener('click', () => {
+            urlInput.value = '';
+            homeView.classList.remove('hidden');
+            previewContainer.classList.add('hidden');
+            youtubeContainer.classList.add('hidden');
+            sourceContainer.classList.add('hidden');
+            ytEmbedFrame.src = '';
+            hideBanner();
+        });
+
+        btnBack.addEventListener('click', () => {
+            if (historyIndex > 0) {
+                historyIndex--;
+                loadPage(historyStack[historyIndex], false);
+            }
+        });
+
+        btnForward.addEventListener('click', () => {
+            if (historyIndex < historyStack.length - 1) {
+                historyIndex++;
+                loadPage(historyStack[historyIndex], false);
+            }
+        });
+
+        btnReload.addEventListener('click', () => {
+            if (historyIndex >= 0 && historyStack[historyIndex]) {
+                loadPage(historyStack[historyIndex], false);
+            } else if (urlInput.value.trim()) {
+                loadPage(urlInput.value, true);
+            }
+        });
+
+        // HTML内の相対パスやリンククリックをプロキシ経由に書き換える処理
+        function rewriteHtmlForProxy(html, baseUrl) {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                let baseEl = doc.querySelector('base');
+                if (!baseEl) {
+                    baseEl = doc.createElement('base');
+                    doc.head.prepend(baseEl);
+                }
+                baseEl.setAttribute('href', baseUrl);
+
+                const interceptScript = doc.createElement('script');
+                interceptScript.textContent = `
+                    document.addEventListener('click', function(e) {
+                        const anchor = e.target.closest('a');
+                        if (anchor && anchor.href && !anchor.href.startsWith('javascript:') && !anchor.href.startsWith('#')) {
+                            e.preventDefault();
+                            window.parent.postMessage({ type: 'NEXUS_NAVIGATE', url: anchor.href }, '*');
+                        }
+                    }, true);
+                `;
+                doc.body.appendChild(interceptScript);
+                return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+            } catch (e) {
+                return html;
+            }
+        }
+
+        // iframe内のリンククリック通知を受信
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'NEXUS_NAVIGATE' && event.data.url) {
+                loadPage(event.data.url, true);
+            }
+        });
+    </script>
+</body>
+</html>
